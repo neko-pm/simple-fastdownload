@@ -1,6 +1,8 @@
 # simple-fastdownload
 
-Provides fastdownload support for srcds without the need for webhosting.
+Provides fastdownload support for srcds without the need for webhosting. By default, it will automatically change the value of `sv_downloadurl` and serve files that are either in the downloadables stringtable or the mapcycle.
+
+From here you can either leave it as is or begin to add bzip2 compressed versions of the files. These can either be in the same location as their non-compressed versions, or separately within the folder specified by `sv_downloadurl_bz2folder`.
 
 ### Requirements
 [Conplex & Webcon](https://forums.alliedmods.net/showthread.php?t=270962)

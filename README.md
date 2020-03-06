@@ -5,7 +5,7 @@ Provides fastdownload support for srcds without the need for webhosting. By defa
 From here you can either leave it as is or begin to add bzip2 compressed versions of the files. These can either be in the same location as their non-compressed versions, or separately within the folder specified by `sv_downloadurl_bz2folder`.
 
 ### Requirements
-[Conplex & Webcon](https://forums.alliedmods.net/showthread.php?t=270962)
+* [Conplex & Webcon](https://forums.alliedmods.net/showthread.php?t=270962)
 
 ### ConVars
 ConVar | Default Value | Description 
@@ -16,6 +16,6 @@ sv_downloadurl_hostname | "" | either empty string, or hostname to use in downlo
 sv_downloadurl_bz2folder | "" | either empty string, or base folder for bz2 files with trailing slash eg: `bz2/`
 
 ### Commands
-Command | Desciption
+Command | Description
 ------ | ------
 sm_fastdownload_list_files | prints a list of all files that are currently in the download whitelist, *note: for server console only*

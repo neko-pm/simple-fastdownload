@@ -10,7 +10,7 @@ public Plugin myinfo =
 	name = "simple-fastdownload",
 	author = "domino_",
 	description = "fastdownload support without webhosting",
-	version = "1.0.0",
+	version = "1.1.0",
 	url = "https://github.com/neko-pm/"
 };
 
@@ -149,7 +149,7 @@ public void SetFastDownloadUrl(const char[] hostname)
 	if(hostname[0] == '\0')
 	{
 		int hostip = FindConVar("hostip").IntValue;
-		FormatEx(fastdownload_url, sizeof(fastdownload_url), "http://%d.%d.%d.%d:%d/%s/",
+		FormatEx(fastdownload_url, sizeof(fastdownload_url), "http://%d.%d.%d.%d:%d/%s",
 			(hostip >> 24) & 0xFF,
 			(hostip >> 16) & 0xFF,
 			(hostip >> 8 ) & 0xFF,
@@ -160,7 +160,7 @@ public void SetFastDownloadUrl(const char[] hostname)
 	}
 	else
 	{
-		FormatEx(fastdownload_url, sizeof(fastdownload_url), "http://%s:%d/%s/",
+		FormatEx(fastdownload_url, sizeof(fastdownload_url), "http://%s:%d/%s",
 			hostname,
 			FindConVar("hostport").IntValue,
 			urlpath

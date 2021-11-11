@@ -16,6 +16,7 @@ sv_downloadurl_hostname | "" | either an empty string, or hostname to use in dow
 sv_downloadurl_bz2folder | "" | either an empty string, or base folder for .bz2 files in game root folder eg: `bz2`
 sv_downloadurl_add_mapcycle | 1 | should all maps in the mapcycle be added to the download whitelist, *recommended value: 1*
 sv_downloadurl_add_downloadables | 1 | should all files in the downloads table be added to the download whitelist, *recommended value: 1*
+sv_fastdownload_log | 0 | should simple-fastdownload log downloads from users into the console, *only recommended for debugging purposes*
 
 ### Commands
 Command | Description

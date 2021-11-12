@@ -10,7 +10,7 @@ public Plugin myinfo =
 	name = "simple-fastdownload",
 	author = "domino_",
 	description = "fastdownload support without webhosting",
-	version = "1.2.0",
+	version = "1.3.0",
 	url = "https://github.com/neko-pm/simple-fastdownload"
 };
 

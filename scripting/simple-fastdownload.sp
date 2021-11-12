@@ -10,7 +10,7 @@ public Plugin myinfo =
 	name = "simple-fastdownload",
 	author = "domino_",
 	description = "fastdownload support without webhosting",
-	version = "1.2.0",
+	version = "1.3.0",
 	url = "https://github.com/neko-pm/simple-fastdownload"
 };
 
@@ -20,6 +20,7 @@ WebResponse response_filenotfound;
 ConVar sv_downloadurl;
 char downloadurl_backup[PLATFORM_MAX_PATH];
 ConVar sv_downloadurl_autoupdate;
+ConVar sv_downloadurl_log;
 ConVar sv_downloadurl_hostname;
 char bz2folder[PLATFORM_MAX_PATH];
 ConVar sv_downloadurl_add_mapcycle;
@@ -47,6 +48,7 @@ public void OnPluginStart()
 	
 	sv_downloadurl_autoupdate = CreateConVar("sv_downloadurl_autoupdate", "1", "should sv_downloadurl be set automatically");
 	sv_downloadurl_autoupdate.AddChangeHook(OnAutoUpdateChanged);
+	sv_downloadurl_log = CreateConVar("sv_downloadurl_log", "0", "should simple-fastdownload log downloads from users");
 	
 	sv_downloadurl_hostname = CreateConVar("sv_downloadurl_hostname", "", "either an empty string, or hostname to use in downloadurl with no trailing slash eg: fastdownload.example.com");
 	if(sv_downloadurl_autoupdate.BoolValue)
@@ -305,14 +307,20 @@ public bool OnWebRequest(WebConnection connection, const char[] method, const ch
 				bool success = connection.QueueResponse(WebStatus_OK, response_file);
 				delete response_file;
 				
+				if(sv_downloadurl_log.BoolValue)
+				{
 				LogToFileEx(logpath, "%i - %s - %s", (success ? 200 : 500), address, filepath);
+				}
 				
 				return success;
 			}
 		}
 	}
 	
+	if(sv_downloadurl_log.BoolValue)
+	{
 	LogToFileEx(logpath, "%i - %s - %s", (is_downloadable ? 404 : 403), address, (is_downloadable ? filepath : url));
+	}
 	
 	return connection.QueueResponse(WebStatus_NotFound, response_filenotfound);
 }

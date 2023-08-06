@@ -24,6 +24,7 @@ public Plugin myinfo =
 
 StringMap downloadable_files;
 ArrayList paths;
+int bz2_path_id;
 bool files_added;
 
 char urlpath[PLATFORM_MAX_PATH];
@@ -43,6 +44,7 @@ ConVar sv_downloadurl_add_downloadables;
 ConVar sv_downloadurl_autoreload;
 ConVar sv_downloadurl_compress;
 ConVar sv_downloadurl_compress_max_concurrent;
+ConVar sv_downloadurl_bz2folder;
 ConVar sv_downloadurl_log_access;
 ConVar sv_downloadurl_log_general;
 
@@ -93,6 +95,8 @@ public void OnPluginStart()
 	sv_downloadurl_compress_max_concurrent = CreateConVar("sv_downloadurl_compress_max_concurrent", "2", "maximum concurrently compressed files; increasing this value should speed up processing at the cost of higher resource usage (primarily CPU)", _, true, 1.0);
 	sv_downloadurl_compress_max_concurrent.AddChangeHook(OnCompressMaxConcurrentChanged);
 	Compressor.SetMaxConcurrent(sv_downloadurl_compress_max_concurrent.IntValue);
+
+	sv_downloadurl_bz2folder = CreateConVar("sv_downloadurl_bz2folder", "bz2", "either an empty string, or base folder for .bz2 files in game root folder eg: bz2");
 
 	sv_downloadurl_log_access = CreateConVar("sv_downloadurl_log_access", "1", "should all fastDL requests get logged", _, true, 0.0, true, 1.0);
 	sv_downloadurl_log_access.AddChangeHook(OnLogAccessChanged);
@@ -291,31 +295,51 @@ void BuildPaths()
 		}
 		delete custom;
 	}
-	paths.PushString(""); // root is last
+	
+	paths.PushString(""); // root is after custom
+
+	sv_downloadurl_bz2folder.GetString(path, sizeof(path));
+	if (path[0] == '\0')
+	{
+		bz2_path_id = -1;
+	}
+	else
+	{
+		ReplaceString(path, sizeof(path), "\\", "/");
+		if (path[strlen(path) - 1] != '/')
+		{
+			StrCat(path, sizeof(path), "/");
+		}
+		bz2_path_id = paths.PushString(path);
+	}
 }
 
 void AddFileToFileList(const char filepath[PLATFORM_MAX_PATH])
 {
 	int pathId;
-	if (AddFileToFileListAllPaths(filepath, pathId))
+	if (AddFileToFileListAllPaths(filepath, false, pathId))
 	{
 		char filepath_bz2[PLATFORM_MAX_PATH];
 		FormatEx(filepath_bz2, sizeof(filepath_bz2), "%s.bz2", filepath);
-		if (!AddFileToFileListAllPaths(filepath_bz2))
+		if (!AddFileToFileListAllPaths(filepath_bz2, true))
 		{
-			char path[PLATFORM_MAX_PATH];
-			paths.GetString(pathId, path, sizeof(path));
-			Compressor.AddToQueue(path, filepath);
+			char path_source[PLATFORM_MAX_PATH], path_dest[PLATFORM_MAX_PATH];
+			paths.GetString(pathId, path_source, sizeof(path_source));
+			paths.GetString((bz2_path_id == -1)? pathId : bz2_path_id, path_dest, sizeof(path_dest));
+			Compressor.AddToQueue(path_source, path_dest, filepath);
 		}
 	}
 }
 
-bool AddFileToFileListAllPaths(const char[] filepath, int &pathId = -1)
+bool AddFileToFileListAllPaths(const char[] filepath, bool bz2, int &pathId = -1)
 {
 	char path[PLATFORM_MAX_PATH];
 	int paths_len = paths.Length;
 	for (int i = 0; i < paths_len; i++)
 	{
+		if (!bz2 && i == bz2_path_id)
+			continue;
+		
 		paths.GetString(i, path, sizeof(path));
 		Format(path, sizeof(path), "%s%s", path, filepath);
 		if (FileExists(path))
@@ -391,7 +415,8 @@ void AddFilesToFileList()
 
 enum struct CompressorQueueEntry
 {
-	char path[PLATFORM_MAX_PATH];
+	char path_source[PLATFORM_MAX_PATH];
+	char path_dest[PLATFORM_MAX_PATH];
 	char filepath[PLATFORM_MAX_PATH];
 }
 
@@ -414,10 +439,11 @@ methodmap Compressor
 		compressor_queue = new ArrayStack(sizeof(CompressorQueueEntry));
 	}
 
-	public static void AddToQueue(const char path[PLATFORM_MAX_PATH], const char filepath[PLATFORM_MAX_PATH])
+	public static void AddToQueue(const char path_source[PLATFORM_MAX_PATH], const char path_dest[PLATFORM_MAX_PATH], const char filepath[PLATFORM_MAX_PATH])
 	{
 		CompressorQueueEntry entry;
-		entry.path = path;
+		entry.path_source = path_source;
+		entry.path_dest = path_dest;
 		entry.filepath = filepath;
 		compressor_queue.PushArray(entry);
 	}
@@ -460,16 +486,17 @@ methodmap Compressor
 			char filepath[PLATFORM_MAX_PATH], archive[PLATFORM_MAX_PATH];
 			CompressorQueueEntry entry;
 			compressor_queue.PopArray(entry);
-			FormatEx(filepath, sizeof(filepath), "%s%s", entry.path, entry.filepath);
-			FormatEx(archive, sizeof(archive), "%s.bz2", filepath);
+			FormatEx(filepath, sizeof(filepath), "%s%s", entry.path_source, entry.filepath);
+			FormatEx(archive, sizeof(archive), "%s%s.bz2", entry.path_dest, entry.filepath);
 
 			DataPack data = new DataPack();
 			if (System2_Compress(CompressCallback, filepath, archive, ARCHIVE_BZIP2, LEVEL_9, data))
 			{
-				data.WriteString(entry.path);
+				if (log_general) LogMessage("Compressing archive: \"%s\"", archive);
+				FormatEx(archive, sizeof(archive), "%s.bz2", entry.filepath);
+				data.WriteString(entry.path_dest);
 				data.WriteString(archive);
 				compressor_count++;
-				if (log_general) LogMessage("Compressing archive: \"%s\"", archive);
 			}
 			else
 			{
@@ -498,9 +525,9 @@ void CompressCallback(bool success, const char[] command, System2ExecuteOutput o
 		int pathId = FindStringInArray(paths, path);
 		if (pathId != -1)
 		{
-			char archive[PLATFORM_MAX_PATH];
-			data.ReadString(archive, sizeof(archive));
-			downloadable_files.SetValue(archive, pathId, false);
+			char filepath[PLATFORM_MAX_PATH];
+			data.ReadString(filepath, sizeof(filepath));
+			downloadable_files.SetValue(filepath, pathId, false);
 		}
 	}
 	delete data;
@@ -522,20 +549,17 @@ void CompressCallback(bool success, const char[] command, System2ExecuteOutput o
 //------------------------------------------------------
 
 public bool OnWebRequest(WebConnection connection, const char[] method, const char[] url)
-{
-	char address[WEB_CLIENT_ADDRESS_LENGTH];
-	connection.GetClientAddress(address, sizeof(address));
-	
+{	
 	int path_index;
  	bool is_downloadable = downloadable_files.GetValue(url[1], path_index);
 	
-	char filepath[PLATFORM_MAX_PATH];
+	static char filepath[PLATFORM_MAX_PATH];
 	if (is_downloadable)
 	{
-		char path[PLATFORM_MAX_PATH];
+		static char path[PLATFORM_MAX_PATH];
 		if (paths.GetString(path_index, path, sizeof(path)))
 		{
-			FormatEx(filepath, sizeof(filepath), "/%s%s", path, url);
+			FormatEx(filepath, sizeof(filepath), "/%s%s", path, url[1]);
 		}
 		else
 		{
@@ -545,19 +569,29 @@ public bool OnWebRequest(WebConnection connection, const char[] method, const ch
 		if (FileExists(filepath))
 		{
 			WebResponse response_file = new WebFileResponse(filepath);
-			if (response_file != INVALID_HANDLE)
+			if (response_file)
 			{
 				bool success = connection.QueueResponse(WebStatus_OK, response_file);
-				delete response_file;
+				response_file.Close();
 
-				if (log_access) LogToFileEx(logpath, "%i - %s - %s", (success ? 200 : 500), address, filepath);
-				
+				if (log_access)
+				{
+					char address[WEB_CLIENT_ADDRESS_LENGTH];
+					connection.GetClientAddress(address, sizeof(address));
+					LogToFileEx(logpath, "%i - %s - %s", (success ? 200 : 500), address, url);
+				}
+
 				return success;
 			}
 		}
 	}
 	
-	if (log_access) LogToFileEx(logpath, "%i - %s - %s", (is_downloadable ? 404 : 403), address, (is_downloadable ? filepath : url));
+	if (log_access)
+	{
+		char address[WEB_CLIENT_ADDRESS_LENGTH];
+		connection.GetClientAddress(address, sizeof(address));
+		LogToFileEx(logpath, "%i - %s - %s", (is_downloadable ? 404 : 403), address, url);
+	}
 	
 	return connection.QueueResponse(WebStatus_NotFound, response_filenotfound);
 }
